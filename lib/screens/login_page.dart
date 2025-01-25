@@ -1,7 +1,11 @@
 // lib/screens/login_page.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
+import '../services/auth_service.dart';
 import 'dart:convert';
+
+final _authService = AuthService();
 
 class LoginPage extends StatefulWidget {
   @override
@@ -27,10 +31,18 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        print(data);
+        final String? token = data['token'];
 
-        if (data['token'] != null) {
+        if (token != null) {
           // adjust according to your API response
-          await ApiService.saveToken(data['token']);
+          await _authService.saveToken(token);
+          print('token saved securely');
+
+          await Future.delayed(Duration(milliseconds: 100));
+
+          final notificationService = NotificationService();
+          await notificationService.initialize();
         }
 
         // Store the token or other user data here
