@@ -7,6 +7,9 @@ import 'screens/PasswordResetRequest.dart';
 import 'screens/PasswordResetConfirmation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'services/auth_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +37,9 @@ class MyApp extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
-      initialRoute: '/',
+      home: AuthCheckPage(),
       routes: {
-        '/': (context) => LoginPage(),
+        '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
         '/home': (context) => HomePage(),
         '/reset-password': (context) => PasswordResetRequestPage(),
@@ -63,6 +66,63 @@ class MyApp extends StatelessWidget {
         }
         return null;
       },
+    );
+  }
+}
+
+class AuthCheckPage extends StatefulWidget {
+  @override
+  _AuthCheckPageState createState() => _AuthCheckPageState();
+}
+
+class _AuthCheckPageState extends State<AuthCheckPage> {
+  final _authService = AuthService();
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    try {
+      final token = await _authService.getToken();
+      final isLoggedIn = await _authService.getLoginState();
+
+      // Add a small delay to show the loading indicator
+      await Future.delayed(Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      if (token != null && isLoggedIn) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      print('Auth check error: $e');
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/login');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: _isLoading
+            ? CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+              )
+            : Container(), // Empty container when not loading
+      ),
     );
   }
 }

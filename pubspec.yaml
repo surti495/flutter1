@@ -15,6 +15,11 @@ dependencies:
   firebase_messaging: ^15.2.0
   flutter_secure_storage: ^8.0.0
   flutter_local_notifications: ^18.0.1
+  cupertino_icons: ^1.0.8
+  agora_rtc_engine: ^6.5.0
+  permission_handler: ^11.3.1
+  shared_preferences: ^2.4.0
+
   # firebase_auth: ^4.0.0
  
 

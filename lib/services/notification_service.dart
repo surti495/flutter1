@@ -3,6 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'auth_service.dart';
+import '../screens/video_call_page.dart';
+import 'package:flutter/material.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBacgroundHandler(RemoteMessage message) async {
@@ -10,6 +12,7 @@ Future<void> _firebaseMessagingBacgroundHandler(RemoteMessage message) async {
 }
 
 class NotificationService {
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
@@ -145,6 +148,9 @@ class NotificationService {
 
   void _handleBackgroundMessage(RemoteMessage message) {
     print('Handling background message: ${message.messageId}');
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (context) => VideoCallPage()),
+    );
     // Handle background message - typically navigation
     _handleNotificationTap(
       NotificationResponse(
@@ -185,8 +191,12 @@ class NotificationService {
     if (details.payload != null) {
       try {
         final data = json.decode(details.payload!);
-        // Handle navigation or other actions based on notification data
         print('Notification tapped with data: $data');
+
+        // Navigate to video call page
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (context) => VideoCallPage()),
+        );
       } catch (e) {
         print('Error parsing notification payload: $e');
       }
