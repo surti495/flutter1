@@ -13,6 +13,29 @@ class HomePage extends StatelessWidget {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Future<void> _handleStartCall(BuildContext context) async {
+    try {
+      // First send the notification through Firebase
+      await notificationService.sendTestNotification();
+
+      // Navigate to video call page after notification is sent
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const VideoCallPage(),
+        ),
+      );
+    } catch (e) {
+      // Show error message if notification fails
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to initiate call: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,14 +73,7 @@ class HomePage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const VideoCallPage(),
-                  ),
-                );
-              },
+              onPressed: () => _handleStartCall(context),
               icon: Icon(Icons.video_call, size: 24),
               label: Text('Start Call', style: TextStyle(fontSize: 18)),
             ),
@@ -68,7 +84,7 @@ class HomePage extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 30),
                 child: IconButton(
                   icon: Icon(Icons.logout, color: Colors.white, size: 28),
-                  onPressed: () => _handleLogout(context), // Update this line
+                  onPressed: () => _handleLogout(context),
                 ),
               ),
             ),
