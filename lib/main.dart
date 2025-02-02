@@ -1,26 +1,29 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'screens/login_page.dart';
 import 'screens/signup_page.dart';
 import 'screens/verification_page.dart';
 import 'screens/home_page.dart';
+import 'screens/video_call_page.dart';
 import 'screens/PasswordResetRequest.dart';
 import 'screens/PasswordResetConfirmation.dart';
+import 'screens/call_action_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+// import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/auth_service.dart';
+import 'services/notification_service.dart';
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Create a global navigator key
+final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Initialize FCM permissions here
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  //  Initialize NotificationService
+  final notificationService = NotificationService();
+  notificationService.setNavigatorKey(_navigatorKey);
+  await notificationService.initialize();
 
   runApp(MyApp());
 }
@@ -29,6 +32,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey, // Use the global navigator key
       title: 'Flutter App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -43,6 +47,15 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => SignupPage(),
         '/home': (context) => HomePage(),
         '/reset-password': (context) => PasswordResetRequestPage(),
+        '/call-action': (context) => CallActionScreen(
+              onAccept: () {
+                Navigator.pushReplacementNamed(context, '/video-call');
+              },
+              onReject: () {
+                Navigator.pushReplacementNamed(context, '/home');
+              },
+            ),
+        '/video-call': (context) => VideoCallPage(), // Add video call route
       },
       onGenerateRoute: (settings) {
         if (settings.name?.startsWith('/verify-email/') ?? false) {
@@ -90,7 +103,6 @@ class _AuthCheckPageState extends State<AuthCheckPage> {
       final token = await _authService.getToken();
       final isLoggedIn = await _authService.getLoginState();
 
-      // Add a small delay to show the loading indicator
       await Future.delayed(Duration(milliseconds: 500));
 
       if (!mounted) return;
@@ -121,7 +133,7 @@ class _AuthCheckPageState extends State<AuthCheckPage> {
             ? CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
               )
-            : Container(), // Empty container when not loading
+            : Container(),
       ),
     );
   }

@@ -2,17 +2,20 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'auth_service.dart';
-import '../screens/video_call_page.dart';
 import 'package:flutter/material.dart';
+import 'auth_service.dart';
+// import '../screens/video_call_page.dart';
+// import '../screens/call_action_screen.dart';
 
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBacgroundHandler(RemoteMessage message) async {
-  print('Handling background message:${message.messageId}');
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // await Firebase.initializeApp();
+  print('Handling background message: ${message.messageId}');
 }
 
 class NotificationService {
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
@@ -22,9 +25,20 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
+  static const String _channelId = 'high_importance_channel';
+  static const String _channelName = 'High Importance Notifications';
+  static const String _channelDescription =
+      'Channel for video call notifications';
+
+  GlobalKey<NavigatorState>? _navigatorKey;
+
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
+
   Future<void> initialize() async {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBacgroundHandler);
-    // Request permission for notifications
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
@@ -33,8 +47,9 @@ class NotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // Initialize local notifications
+      print('User granted permission');
       await _initializeLocalNotifications();
+      await _setupNotificationChannels();
 
       // Get and save FCM token
       String? token = await _firebaseMessaging.getToken();
@@ -43,47 +58,63 @@ class NotificationService {
       // Listen for token refresh
       _firebaseMessaging.onTokenRefresh.listen(sendTokenToServer);
 
-      // Handle incoming messages when app is in foreground
+      // Handle incoming messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-      // Handle when app is in background but opened
       FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
+
+      // Check for initial message (app was terminated)
+      RemoteMessage? initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        _handleBackgroundMessage(initialMessage);
+      }
     }
+  }
+
+  Future<void> _setupNotificationChannels() async {
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      _channelId,
+      _channelName,
+      description: _channelDescription,
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
   }
 
   Future<void> _initializeLocalNotifications() async {
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iOSSettings =
-        DarwinInitializationSettings();
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
     await _localNotifications.initialize(
       const InitializationSettings(
         android: androidSettings,
         iOS: iOSSettings,
       ),
-      onDidReceiveNotificationResponse: (NotificationResponse details) {
-        // Handle notification tap
-        _handleNotificationTap(details);
-      },
+      onDidReceiveNotificationResponse: _handleNotificationTap,
     );
-  }
-
-  Future<String?> getAuthToken() async {
-    return await _authService.getToken();
   }
 
   Future<void> sendTokenToServer(String? token) async {
     if (token == null) return;
 
     try {
-      final authToken = await getAuthToken();
+      final authToken = await _authService.getToken();
       if (authToken == null) {
         print('No auth token available');
         return;
       }
-      print('Sending FCM token to server: $token'); // Debug log
-      print('Using auth token: $authToken');
 
       final response = await http.post(
         Uri.parse(
@@ -94,23 +125,124 @@ class NotificationService {
         },
         body: jsonEncode({'fcm_token': token}),
       );
-      print('Response status code: ${response.statusCode}'); // Debug log
-      print('Response body: ${response.body}');
 
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200 && responseData['success']) {
-        print('FCM token successfully saved: ${responseData['message']}');
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('FCM token saved: ${responseData['message']}');
       } else {
-        print('Failed to save FCM token: ${responseData['error']}');
+        print('Failed to save FCM token: ${response.statusCode}');
       }
     } catch (e) {
       print('Error sending token to server: $e');
     }
   }
 
+  void _handleForegroundMessage(RemoteMessage message) async {
+    print('Got a message in foreground!');
+    print('Message data: ${message.data}');
+
+    RemoteNotification? notification = message.notification;
+    AndroidNotification? android = message.notification?.android;
+
+    if (notification != null && android != null) {
+      await _localNotifications.show(
+        notification.hashCode,
+        notification.title,
+        notification.body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            channelDescription: _channelDescription,
+            icon: '@mipmap/ic_launcher',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: json.encode({'type': 'video_call'}),
+      );
+    }
+  }
+
+  void _handleBackgroundMessage(RemoteMessage message) {
+    print('===============================');
+    print('Background message received - Starting navigation process');
+
+    try {
+      // Add a slight delay to ensure context is ready
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (_navigatorKey?.currentContext != null) {
+          print('Attempting to navigate from background message');
+          Navigator.pushReplacementNamed(
+            _navigatorKey!.currentContext!,
+            '/call-action',
+          ).then((_) {
+            print('Background navigation completed successfully');
+          }).catchError((error) {
+            print('Background navigation error: $error');
+          });
+        } else {
+          print('ERROR: No context available for background navigation');
+        }
+      });
+    } catch (e) {
+      print('Background navigation exception: $e');
+    }
+    print('===============================');
+  }
+
+  void _handleNotificationTap(NotificationResponse details) {
+    print('===============================');
+    print('Notification tapped - Starting navigation process');
+
+    if (_navigatorKey?.currentContext == null) {
+      print('ERROR: No valid context available');
+      return;
+    }
+
+    try {
+      // Add a slight delay to ensure context is ready
+      Future.delayed(const Duration(milliseconds: 500), () {
+        print('Attempting to navigate to call action screen');
+        print('Navigator Key: $_navigatorKey');
+        print('Current Context: ${_navigatorKey!.currentContext}');
+        print('Route Name: /call-action');
+
+        Navigator.pushReplacementNamed(
+          _navigatorKey!.currentContext!,
+          '/call-action',
+        ).then((_) {
+          print('Navigation completed successfully');
+        }).catchError((error) {
+          print('Navigation error: $error');
+        });
+      });
+    } catch (e) {
+      print('Background navigation exception: $e');
+    }
+    print('===============================');
+  }
+
+  void navigateToCallActionScreen() {
+    if (_navigatorKey?.currentContext == null) {
+      print('No valid context available for navigation');
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.of(_navigatorKey!.currentContext!)
+          .pushReplacementNamed('/call-action');
+    });
+  }
+
   Future<void> sendTestNotification() async {
     try {
-      final authToken = await getAuthToken();
+      final authToken = await _authService.getToken();
       if (authToken == null) {
         print('No auth token available');
         return;
@@ -132,74 +264,6 @@ class NotificationService {
       }
     } catch (e) {
       print('Error sending notification: $e');
-    }
-  }
-
-  void _handleForegroundMessage(RemoteMessage message) async {
-    print('Handling foreground message: ${message.messageId}');
-
-    // Show local notification
-    await _showLocalNotification(
-      title: message.notification?.title ?? 'New Notification',
-      body: message.notification?.body ?? '',
-      payload: json.encode(message.data),
-    );
-  }
-
-  void _handleBackgroundMessage(RemoteMessage message) {
-    print('Handling background message: ${message.messageId}');
-    navigatorKey.currentState?.push(
-      MaterialPageRoute(builder: (context) => VideoCallPage()),
-    );
-    // Handle background message - typically navigation
-    _handleNotificationTap(
-      NotificationResponse(
-        notificationResponseType: NotificationResponseType.selectedNotification,
-        payload: json.encode(message.data),
-      ),
-    );
-  }
-
-  Future<void> _showLocalNotification({
-    required String title,
-    required String body,
-    String? payload,
-  }) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-      'default_channel',
-      'Default Channel',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-
-    const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails();
-
-    await _localNotifications.show(
-      DateTime.now().millisecond,
-      title,
-      body,
-      const NotificationDetails(
-        android: androidDetails,
-        iOS: iOSDetails,
-      ),
-      payload: payload,
-    );
-  }
-
-  void _handleNotificationTap(NotificationResponse details) {
-    if (details.payload != null) {
-      try {
-        final data = json.decode(details.payload!);
-        print('Notification tapped with data: $data');
-
-        // Navigate to video call page
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (context) => VideoCallPage()),
-        );
-      } catch (e) {
-        print('Error parsing notification payload: $e');
-      }
     }
   }
 }

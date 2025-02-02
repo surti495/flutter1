@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'video_call_page.dart';
+import 'profile_screen.dart';
 
 class HomePage extends StatelessWidget {
   final NotificationService notificationService = NotificationService();
@@ -15,10 +16,7 @@ class HomePage extends StatelessWidget {
 
   Future<void> _handleStartCall(BuildContext context) async {
     try {
-      // First send the notification through Firebase
       await notificationService.sendTestNotification();
-
-      // Navigate to video call page after notification is sent
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -26,7 +24,6 @@ class HomePage extends StatelessWidget {
         ),
       );
     } catch (e) {
-      // Show error message if notification fails
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to initiate call: ${e.toString()}'),
@@ -47,48 +44,129 @@ class HomePage extends StatelessWidget {
             colors: [Colors.black, Colors.grey[900]!],
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Spacer(),
-            Icon(Icons.home, size: 100, color: Colors.white),
-            SizedBox(height: 20),
-            Text(
-              'Welcome to the Homepage!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Header with profile preview
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ProfileScreen(),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            child: Icon(Icons.person),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            'View Profile',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.logout, color: Colors.white),
+                      onPressed: () => _handleLogout(context),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 40),
+
+                // Dashboard Grid
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    children: [
+                      _buildDashboardItem(
+                        context,
+                        'Profile',
+                        Icons.person,
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ProfileScreen()),
+                        ),
+                      ),
+                      _buildDashboardItem(
+                        context,
+                        'Video Call',
+                        Icons.video_call,
+                        () => _handleStartCall(context),
+                      ),
+                      _buildDashboardItem(
+                        context,
+                        'Settings',
+                        Icons.settings,
+                        () {}, // TODO: Add settings functionality
+                      ),
+                      _buildDashboardItem(
+                        context,
+                        'Help',
+                        Icons.help,
+                        () {}, // TODO: Add help functionality
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardItem(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return Card(
+      color: Colors.white.withOpacity(0.1),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 48,
                 color: Colors.white,
               ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 40),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+              SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
               ),
-              onPressed: () => _handleStartCall(context),
-              icon: Icon(Icons.video_call, size: 24),
-              label: Text('Start Call', style: TextStyle(fontSize: 18)),
-            ),
-            Spacer(),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 30),
-                child: IconButton(
-                  icon: Icon(Icons.logout, color: Colors.white, size: 28),
-                  onPressed: () => _handleLogout(context),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
