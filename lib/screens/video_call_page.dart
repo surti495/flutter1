@@ -7,7 +7,7 @@ void main() => runApp(VideoCallPage());
 
 const appId = "a6a6fbc1b29545daa4c8d23730c97fda";
 const token =
-    "007eJxTYPizz4R1y1W+mfyi051/8WxPW5nV2undEL+pcv7yqu7+88sUGBLNEs3SkpINk4wsTU1MUxITTZItUoyMzY0Nki3N01ISC23npzcEMjKonk9gZmSAQBCfm8G3UiGgKD8rNbnEkIEBAF53IkE=";
+    "007eJxTYBAX0dq4pUVf9fsVucS7XwS3lP+Y5f15j63zdrcU1eVv9u1VYEg0SzRLS0o2TDKyNDUxTUlMNEm2SDEyNjc2SLY0T0tJfDBrYXpDICND3cZGJkYGCATxuRl8KxUCivKzUpNLDBkYAKsNI+o=";
 const channel = "My Project1";
 
 class VideoCallPage extends StatefulWidget {
@@ -80,7 +80,6 @@ class VideoCallPageState extends State<VideoCallPage> {
     );
   }
 
-  // New method to toggle microphone
   Future<void> _toggleMicrophone() async {
     setState(() {
       _isMicMuted = !_isMicMuted;
@@ -88,7 +87,6 @@ class VideoCallPageState extends State<VideoCallPage> {
     await _engine.enableLocalAudio(!_isMicMuted);
   }
 
-  // New method to toggle video
   Future<void> _toggleVideo() async {
     setState(() {
       _isVideoEnabled = !_isVideoEnabled;
@@ -96,7 +94,6 @@ class VideoCallPageState extends State<VideoCallPage> {
     await _engine.enableLocalVideo(_isVideoEnabled);
   }
 
-  // New method to end call
   Future<void> _endCall() async {
     await _dispose();
     setState(() {
@@ -120,61 +117,73 @@ class VideoCallPageState extends State<VideoCallPage> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData.light().copyWith(
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.black,
-          titleTextStyle: TextStyle(color: Colors.white, fontSize: 22),
-        ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Colors.blue,
-        ),
-        iconTheme: const IconThemeData(color: Colors.black),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.black, fontSize: 18),
-        ),
-      ),
-      darkTheme: ThemeData.dark().copyWith(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.grey,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           titleTextStyle: TextStyle(color: Colors.white, fontSize: 22),
         ),
-        floatingActionButtonTheme: const FloatingActionButtonThemeData(
-          backgroundColor: Colors.red,
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white, fontSize: 18),
-        ),
       ),
-      themeMode: ThemeMode.system, // Choose between system light or dark theme
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Video Call'),
         ),
         body: Stack(
           children: [
-            Center(
-              child: _remoteVideo(),
-            ),
-            Align(
-              alignment: Alignment.topLeft,
-              child: SizedBox(
-                width: 100,
-                height: 150,
-                child: Center(
-                  child: _localUserJoined
-                      ? AgoraVideoView(
-                          controller: VideoViewController(
-                            rtcEngine: _engine,
-                            canvas: const VideoCanvas(uid: 0),
-                          ),
-                        )
-                      : const CircularProgressIndicator(),
+            // Background with blur effect
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black, Colors.grey[900]!],
                 ),
               ),
             ),
+
+            // Remote video
+            Center(
+              child: _remoteVideo(),
+            ),
+
+            // Local video preview
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 120,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: _localUserJoined
+                        ? AgoraVideoView(
+                            controller: VideoViewController(
+                              rtcEngine: _engine,
+                              canvas: const VideoCanvas(uid: 0),
+                            ),
+                          )
+                        : const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Control buttons with glassmorphic design
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -182,23 +191,21 @@ class VideoCallPageState extends State<VideoCallPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    FloatingActionButton(
+                    _buildGlassmorphicButton(
                       onPressed: _toggleMicrophone,
-                      child: Icon(_isMicMuted ? Icons.mic_off : Icons.mic),
-                      backgroundColor: _isMicMuted ? Colors.red : Colors.blue,
+                      icon: _isMicMuted ? Icons.mic_off : Icons.mic,
+                      color: _isMicMuted ? Colors.red : Colors.blue,
                     ),
-                    FloatingActionButton(
+                    _buildGlassmorphicButton(
                       onPressed: _endCall,
-                      child: const Icon(Icons.call_end),
-                      backgroundColor: Colors.red,
+                      icon: Icons.call_end,
+                      color: Colors.red,
                     ),
-                    FloatingActionButton(
+                    _buildGlassmorphicButton(
                       onPressed: _toggleVideo,
-                      child: Icon(_isVideoEnabled
-                          ? Icons.videocam
-                          : Icons.videocam_off),
-                      backgroundColor:
-                          _isVideoEnabled ? Colors.blue : Colors.red,
+                      icon:
+                          _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
+                      color: _isVideoEnabled ? Colors.blue : Colors.red,
                     ),
                   ],
                 ),
@@ -226,5 +233,35 @@ class VideoCallPageState extends State<VideoCallPage> {
         style: TextStyle(color: Colors.white, fontSize: 18),
       );
     }
+  }
+
+  Widget _buildGlassmorphicButton({
+    required VoidCallback onPressed,
+    required IconData icon,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: color,
+          size: 30,
+        ),
+      ),
+    );
   }
 }

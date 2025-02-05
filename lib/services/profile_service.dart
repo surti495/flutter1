@@ -19,6 +19,8 @@ class ProfileService {
           'Content-Type': 'application/json',
         },
       );
+      print('Profile Response Status: ${response.statusCode}');
+      print('Profile Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         return UserProfile.fromJson(json.decode(response.body));
@@ -60,11 +62,7 @@ class ProfileService {
     }
   }
 
-  // Add method to update other profile fields
-  Future<UserProfile> updateProfile({
-    String? name,
-    // Add other fields as needed
-  }) async {
+  Future<UserProfile> updateProfile({required String name}) async {
     try {
       final token = await _authService.getToken();
       if (token == null) throw Exception('No auth token found');
@@ -75,19 +73,20 @@ class ProfileService {
           'Authorization': 'Token $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          if (name != null) 'name': name,
-          // Add other fields as needed
-        }),
+        body: json.encode({'name': name}),
       );
 
+      print('Update Profile Response: ${response.body}'); // Debug log
+
       if (response.statusCode == 200) {
-        return UserProfile.fromJson(json.decode(response.body));
+        final Map<String, dynamic> data = json.decode(response.body);
+        return UserProfile.fromJson(data);
       } else {
-        throw Exception('Failed to update profile: ${response.body}');
+        throw Exception('Failed to update profile: ${response.statusCode}');
       }
     } catch (e) {
-      throw Exception('Error updating profile: $e');
+      print('Update Profile Error: $e'); // Debug log
+      throw Exception('Failed to update profile: $e');
     }
   }
 }
