@@ -7,7 +7,7 @@ void main() => runApp(VideoCallPage());
 
 const appId = "a6a6fbc1b29545daa4c8d23730c97fda";
 const token =
-    "007eJxTYBAX0dq4pUVf9fsVucS7XwS3lP+Y5f15j63zdrcU1eVv9u1VYEg0SzRLS0o2TDKyNDUxTUlMNEm2SDEyNjc2SLY0T0tJfDBrYXpDICND3cZGJkYGCATxuRl8KxUCivKzUpNLDBkYAKsNI+o=";
+    "007eJxTYFBi0lj18jr/gs8XXSrPxW6Ys4a1f+OHHbLGsqZpcnohNgIKDIlmiWZpScmGSUaWpiamKYmJJskWKUbG5sYGyZbmaSmJ+xKWpDcEMjL4+b1kYIRCEJ+bwbdSIaAoPys1ucSQgQEA3IUgxQ==";
 const channel = "My Project1";
 
 class VideoCallPage extends StatefulWidget {

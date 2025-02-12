@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/user_profile.dart';
 import '../services/profile_service.dart';
 import 'dart:ui';
+import 'change_password_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -17,6 +18,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _error;
   bool _isEditingName = false;
   final _nameController = TextEditingController();
+  void _changePassword() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ChangePasswordPage()),
+    );
+  }
 
   @override
   void initState() {
@@ -299,12 +306,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           _userProfile!.profilePictureFullUrl!)
                                       : null,
                                   onBackgroundImageError:
-                                      (exception, stackTrace) {
-                                    print(
-                                        'Error loading profile picture: $exception');
-                                    print(
-                                        'URL attempted: ${_userProfile?.profilePictureFullUrl}');
-                                  },
+                                      _userProfile?.profilePictureFullUrl !=
+                                              null
+                                          ? (exception, stackTrace) {
+                                              print(
+                                                  'Error loading profile picture: $exception');
+                                              print(
+                                                  'URL attempted: ${_userProfile?.profilePictureFullUrl}');
+                                            }
+                                          : null,
                                   child: _userProfile?.profilePictureFullUrl ==
                                           null
                                       ? Icon(Icons.person,
@@ -333,6 +343,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   'Email',
                                   _userProfile?.email ?? '',
                                   Icons.email_rounded,
+                                ),
+                                ElevatedButton(
+                                  onPressed: _changePassword,
+                                  child: Text('Change Password'),
                                 ),
                               ],
                             ),

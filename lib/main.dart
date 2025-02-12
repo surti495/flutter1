@@ -5,8 +5,7 @@ import 'screens/signup_page.dart';
 import 'screens/verification_page.dart';
 import 'screens/home_page.dart';
 import 'screens/video_call_page.dart';
-import 'screens/PasswordResetRequest.dart';
-import 'screens/PasswordResetConfirmation.dart';
+import 'screens/password_reset_page.dart';
 import 'screens/call_action_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'package:firebase_messaging/firebase_messaging.dart';
@@ -46,7 +45,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
         '/home': (context) => HomePage(),
-        '/reset-password': (context) => PasswordResetRequestPage(),
+        '/reset-password': (context) => PasswordResetPage(),
         '/call-action': (context) => CallActionScreen(
               onAccept: () {
                 Navigator.pushReplacementNamed(context, '/video-call');
@@ -63,19 +62,6 @@ class MyApp extends StatelessWidget {
           return MaterialPageRoute(
             builder: (context) => VerificationPage(token: token),
           );
-        }
-        if (settings.name?.startsWith('/reset-password-confirm/') ?? false) {
-          final uri = Uri.parse(settings.name!);
-          final pathSegments = uri.pathSegments;
-
-          if (pathSegments.length >= 3) {
-            final uid = pathSegments[1];
-            final token = pathSegments[2];
-
-            return MaterialPageRoute(
-              builder: (context) => PasswordResetPage(uid: uid, token: token),
-            );
-          }
         }
         return null;
       },

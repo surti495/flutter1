@@ -63,29 +63,65 @@ class ApiService {
     return await http.get(url);
   }
 
-  static Future<http.Response> requestPasswordReset(String email) async {
-    final url = Uri.parse(baseUrl + 'send-reset-password-email/');
-    return await http.post(
+  // Reset Password
+
+  static Future<http.Response> changePassword(
+    String oldPassword,
+    String password,
+    String password2,
+    AuthService authService,
+  ) async {
+    final token = await authService.getToken();
+    if (token == null) {
+      throw Exception('No auth token found');
+    }
+
+    final url = Uri.parse(baseUrl + 'changepassword/');
+
+    return await http.put(
       url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email}),
+      headers: {
+        'Authorization': 'Token $token',
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'old_password': oldPassword,
+        'password': password,
+        'password2': password2,
+      }),
     );
   }
 
-  // Reset Password
-  static Future<http.Response> resetPassword(
-    String uid,
-    String token,
-    String password,
-    String password2,
-  ) async {
-    // Corrected URL with uid and token in the path
-    final url = Uri.parse(baseUrl + 'reset-password/$uid/$token/');
+  static Future<http.Response> sendPasswordResetOTP(String email) async {
+    final url = Uri.parse(baseUrl + 'send-reset-password-email/');
 
     return await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: json.encode({
+        'email': email,
+      }),
+    );
+  }
+
+  static Future<http.Response> verifyOTPAndResetPassword({
+    required String email,
+    required String otp,
+    required String password,
+    required String password2,
+  }) async {
+    final url = Uri.parse(baseUrl + 'verify-otp/');
+
+    return await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'email': email,
+        'otp': otp,
         'password': password,
         'password2': password2,
       }),
