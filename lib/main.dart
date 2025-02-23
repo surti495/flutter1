@@ -7,6 +7,7 @@ import 'screens/home_page.dart';
 import 'screens/video_call_page.dart';
 import 'screens/password_reset_page.dart';
 import 'screens/call_action_screen.dart';
+import 'screens/call_logs_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 // import 'package:firebase_messaging/firebase_messaging.dart';
 import 'services/auth_service.dart';
@@ -55,6 +56,7 @@ class MyApp extends StatelessWidget {
               },
             ),
         '/video-call': (context) => VideoCallPage(), // Add video call route
+        '/call-logs': (context) => CallLogsScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name?.startsWith('/verify-email/') ?? false) {

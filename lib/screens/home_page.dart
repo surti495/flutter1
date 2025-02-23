@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'video_call_page.dart';
 import 'profile_screen.dart';
+import 'call_logs_screen.dart';
 import 'dart:ui';
 
 class HomePage extends StatelessWidget {
@@ -166,17 +167,14 @@ class HomePage extends StatelessWidget {
                         ),
                         _buildDashboardItem(
                           context,
-                          'Settings',
-                          Icons.settings_rounded,
-                          Colors.purple,
-                          () {},
-                        ),
-                        _buildDashboardItem(
-                          context,
-                          'Help',
-                          Icons.help_rounded,
-                          Colors.teal,
-                          () {},
+                          'Call Logs',
+                          Icons.history_rounded,
+                          Colors.green,
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => CallLogsScreen()),
+                          ),
                         ),
                       ],
                     ),
