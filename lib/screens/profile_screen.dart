@@ -77,6 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _userProfile = updatedProfile;
         _isLoading = false;
         _error = null;
+        _isEditingName = false; // Add this line to close editing mode
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -214,7 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 colors: [
                   Colors.black,
                   Colors.blueGrey.shade900,
-                  Colors.indigo.shade900,
+                  const Color.fromARGB(255, 5, 7, 34),
                 ],
               ),
             ),
@@ -344,11 +345,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   _userProfile?.email ?? '',
                                   Icons.email_rounded,
                                 ),
-                                ElevatedButton(
-                                  onPressed: _changePassword,
-                                  child: Text('Change Password'),
-                                ),
                               ],
+                            ),
+                          ),
+                          SizedBox(height: 24), // Add spacing
+                          // Change Password Button
+                          _buildGlassButton(
+                            onPressed: _changePassword,
+                            child: Text(
+                              'Change Password',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],

@@ -92,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
                 colors: [
                   Colors.black,
                   Colors.blueGrey.shade900,
-                  Colors.indigo.shade900,
+                  const Color.fromARGB(255, 2, 3, 14),
                 ],
               ),
             ),

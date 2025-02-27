@@ -112,7 +112,7 @@ class HomePage extends StatelessWidget {
                 colors: [
                   Colors.black,
                   Colors.blueGrey.shade900,
-                  Colors.indigo.shade900,
+                  const Color.fromARGB(255, 4, 6, 38),
                 ],
               ),
             ),
