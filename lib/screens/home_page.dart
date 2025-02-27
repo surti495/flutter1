@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
 import 'video_call_page.dart';
@@ -16,14 +18,77 @@ class HomePage extends StatelessWidget {
     Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Future<Map<String, dynamic>> _generateToken() async {
+    final authToken = await _authService.getToken();
+    if (authToken == null) {
+      throw Exception('No auth token found');
+    }
+
+    final response = await http.post(
+      Uri.parse(
+          'https://4dkf27s7-8000.inc1.devtunnels.ms/api/user/generate-token/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Token $authToken',
+      },
+      body: json.encode({
+        'channel_name': 'default_channel',
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to generate token: ${response.statusCode}');
+    }
+  }
+
   Future<void> _handleStartCall(BuildContext context) async {
     try {
-      await _notificationService.sendTestNotification();
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+            ),
+          );
+        },
+      );
+
+      // Generate token first
+      final tokenData = await _generateToken();
+      final agoraToken = tokenData['token'];
+      final channelName = tokenData['channel'];
+      final uid = tokenData['uid'];
+
+      // Close loading indicator
+      Navigator.pop(context);
+
+      // Send notification with token data
+      await _notificationService.sendCallNotification(
+        token: agoraToken,
+        channelName: channelName,
+        uid: uid,
+      );
+
+      // Navigate to video call with the same token
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const VideoCallPage()),
+        MaterialPageRoute(
+          builder: (context) => VideoCallPage(
+            tokenData: tokenData,
+          ),
+        ),
       );
     } catch (e) {
+      // Close loading indicator if still showing
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to initiate call: ${e.toString()}'),

@@ -7,17 +7,16 @@ import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 
 class VideoCallPage extends StatefulWidget {
-  const VideoCallPage({Key? key}) : super(key: key);
+  final Map<String, dynamic>? tokenData;
+
+  const VideoCallPage({Key? key, this.tokenData}) : super(key: key);
 
   @override
   VideoCallPageState createState() => VideoCallPageState();
 }
 
-// Update the state class to handle multiple remote users
 class VideoCallPageState extends State<VideoCallPage> {
-  // Add AuthService
   final AuthService _authService = AuthService();
-  // Replace single remoteUid with a Set to track multiple users
   final Set<int> _remoteUsers = {};
   bool _localUserJoined = false;
   late RtcEngine _engine;
@@ -36,7 +35,18 @@ class VideoCallPageState extends State<VideoCallPage> {
 
   Future<void> _initializeCall() async {
     try {
-      await getToken();
+      // If tokenData is provided, use it directly
+      if (widget.tokenData != null) {
+        setState(() {
+          token = widget.tokenData!['token'];
+          channelName = widget.tokenData!['channel'];
+          uid = widget.tokenData!['uid'];
+        });
+      } else {
+        // Otherwise, fetch a new token
+        await getToken();
+      }
+
       await initAgora();
     } catch (e) {
       print('Error initializing call: $e');
@@ -54,7 +64,7 @@ class VideoCallPageState extends State<VideoCallPage> {
       Uri.parse('$baseUrl/generate-token/'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Token $authToken', // Add auth token
+        'Authorization': 'Token $authToken',
       },
       body: json.encode({
         'channel_name': 'default_channel',
@@ -82,7 +92,7 @@ class VideoCallPageState extends State<VideoCallPage> {
         Uri.parse('$baseUrl/update-call-log/'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Token $authToken', // Add auth token
+          'Authorization': 'Token $authToken',
         },
         body: json.encode({
           'channel_name': channelName,

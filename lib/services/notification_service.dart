@@ -4,12 +4,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
-// import '../screens/video_call_page.dart';
-// import '../screens/call_action_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // await Firebase.initializeApp();
   print('Handling background message: ${message.messageId}');
 }
 
@@ -144,6 +141,15 @@ class NotificationService {
     RemoteNotification? notification = message.notification;
     AndroidNotification? android = message.notification?.android;
 
+    // Get the call data from message
+    Map<String, dynamic> callData = message.data;
+    String payload = json.encode({
+      'type': 'video_call',
+      'token': callData['token'],
+      'channelName': callData['channelName'],
+      'uid': callData['uid']
+    });
+
     if (notification != null && android != null) {
       await _localNotifications.show(
         notification.hashCode,
@@ -164,7 +170,7 @@ class NotificationService {
             presentSound: true,
           ),
         ),
-        payload: json.encode({'type': 'video_call'}),
+        payload: payload,
       );
     }
   }
@@ -174,13 +180,22 @@ class NotificationService {
     print('Background message received - Starting navigation process');
 
     try {
+      // Extract call details from the message data
+      Map<String, dynamic> callData = message.data;
+
       // Add a slight delay to ensure context is ready
       Future.delayed(const Duration(milliseconds: 500), () {
         if (_navigatorKey?.currentContext != null) {
           print('Attempting to navigate from background message');
+
           Navigator.pushReplacementNamed(
             _navigatorKey!.currentContext!,
             '/call-action',
+            arguments: {
+              'token': callData['token'],
+              'channelName': callData['channelName'],
+              'uid': int.parse(callData['uid'] ?? '0')
+            },
           ).then((_) {
             print('Background navigation completed successfully');
           }).catchError((error) {
@@ -206,16 +221,24 @@ class NotificationService {
     }
 
     try {
+      // Parse the payload
+      Map<String, dynamic> payload = {};
+      if (details.payload != null) {
+        payload = json.decode(details.payload!);
+      }
+
       // Add a slight delay to ensure context is ready
       Future.delayed(const Duration(milliseconds: 500), () {
         print('Attempting to navigate to call action screen');
-        print('Navigator Key: $_navigatorKey');
-        print('Current Context: ${_navigatorKey!.currentContext}');
-        print('Route Name: /call-action');
 
         Navigator.pushReplacementNamed(
           _navigatorKey!.currentContext!,
           '/call-action',
+          arguments: {
+            'token': payload['token'],
+            'channelName': payload['channelName'],
+            'uid': int.parse(payload['uid'] ?? '0')
+          },
         ).then((_) {
           print('Navigation completed successfully');
         }).catchError((error) {
@@ -228,19 +251,12 @@ class NotificationService {
     print('===============================');
   }
 
-  void navigateToCallActionScreen() {
-    if (_navigatorKey?.currentContext == null) {
-      print('No valid context available for navigation');
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(_navigatorKey!.currentContext!)
-          .pushReplacementNamed('/call-action');
-    });
-  }
-
-  Future<void> sendTestNotification() async {
+  // Update this method to send call data with the notification
+  Future<void> sendCallNotification({
+    required String token,
+    required String channelName,
+    required int uid,
+  }) async {
     try {
       final authToken = await _authService.getToken();
       if (authToken == null) {
@@ -255,15 +271,22 @@ class NotificationService {
           'Authorization': 'Token $authToken',
           'Content-Type': 'application/json',
         },
+        body: jsonEncode({
+          'token': token,
+          'channelName': channelName,
+          'uid': uid.toString(),
+        }),
       );
 
       if (response.statusCode == 200) {
-        print('Test notification sent successfully');
+        print('Call notification sent successfully with token data');
       } else {
-        print('Failed to send test notification: ${response.statusCode}');
+        print('Failed to send call notification: ${response.statusCode}');
+        throw Exception('Failed to send notification: ${response.statusCode}');
       }
     } catch (e) {
       print('Error sending notification: $e');
+      throw e;
     }
   }
 }

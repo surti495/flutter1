@@ -48,12 +48,12 @@ class MyApp extends StatelessWidget {
         '/home': (context) => HomePage(),
         '/reset-password': (context) => PasswordResetPage(),
         '/call-action': (context) => CallActionScreen(
-              onAccept: () {
-                Navigator.pushReplacementNamed(context, '/video-call');
-              },
-              onReject: () {
-                Navigator.pushReplacementNamed(context, '/home');
-              },
+            // onAccept: () {
+            //   Navigator.pushReplacementNamed(context, '/video-call');
+            // },
+            // onReject: () {
+            //   Navigator.pushReplacementNamed(context, '/home');
+            // },
             ),
         '/video-call': (context) => VideoCallPage(), // Add video call route
         '/call-logs': (context) => CallLogsScreen(),
