@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
+import '../screens/call_action_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -138,131 +139,113 @@ class NotificationService {
     print('Got a message in foreground!');
     print('Message data: ${message.data}');
 
-    RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
-
-    // Get the call data from message
-    Map<String, dynamic> callData = message.data;
-    String payload = json.encode({
-      'type': 'video_call',
-      'token': callData['token'],
-      'channelName': callData['channelName'],
-      'uid': callData['uid']
-    });
-
-    if (notification != null && android != null) {
-      await _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            _channelName,
-            channelDescription: _channelDescription,
-            icon: '@mipmap/ic_launcher',
-            importance: Importance.max,
-            priority: Priority.high,
+    if (message.data.containsKey('token') &&
+        message.data.containsKey('channelName')) {
+      // Show incoming call screen
+      if (_navigatorKey?.currentState != null) {
+        _navigatorKey!.currentState!.push(
+          MaterialPageRoute(
+            builder: (context) => CallActionScreen(
+              callData: {
+                'token': message.data['token'],
+                'channelName': message.data['channelName'],
+                'uid': int.parse(message.data['uid'] ?? '2'),
+                'caller_uid': int.parse(message.data['caller_uid'] ?? '1'),
+                'is_caller': false,
+              },
+            ),
           ),
-          iOS: const DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
-        payload: payload,
-      );
+        );
+      }
     }
   }
 
   void _handleBackgroundMessage(RemoteMessage message) {
-    print('===============================');
     print('Background message received - Starting navigation process');
 
     try {
       // Extract call details from the message data
       Map<String, dynamic> callData = message.data;
 
+      // Ensure uid is parsed correctly
+      int uidValue = int.tryParse(callData['uid'] ?? '0') ?? 0;
+
       // Add a slight delay to ensure context is ready
       Future.delayed(const Duration(milliseconds: 500), () {
         if (_navigatorKey?.currentContext != null) {
-          print('Attempting to navigate from background message');
-
           Navigator.pushReplacementNamed(
             _navigatorKey!.currentContext!,
             '/call-action',
             arguments: {
               'token': callData['token'],
               'channelName': callData['channelName'],
-              'uid': int.parse(callData['uid'] ?? '0')
+              'uid': uidValue,
+              'is_caller': false, // This person is receiving the call
             },
-          ).then((_) {
-            print('Background navigation completed successfully');
-          }).catchError((error) {
-            print('Background navigation error: $error');
-          });
-        } else {
-          print('ERROR: No context available for background navigation');
+          );
         }
       });
     } catch (e) {
       print('Background navigation exception: $e');
     }
-    print('===============================');
   }
 
-  void _handleNotificationTap(NotificationResponse details) {
-    print('===============================');
-    print('Notification tapped - Starting navigation process');
-
-    if (_navigatorKey?.currentContext == null) {
-      print('ERROR: No valid context available');
-      return;
-    }
-
+  Future<void> _handleNotificationTap(NotificationResponse details) async {
+    print('=== Notification Tap Handling ===');
     try {
-      // Parse the payload
-      Map<String, dynamic> payload = {};
-      if (details.payload != null) {
-        payload = json.decode(details.payload!);
+      if (details.payload == null) {
+        print('ERROR: No payload in notification');
+        return;
       }
 
-      // Add a slight delay to ensure context is ready
-      Future.delayed(const Duration(milliseconds: 500), () {
-        print('Attempting to navigate to call action screen');
+      // Parse and verify payload
+      Map<String, dynamic> payload = json.decode(details.payload!);
+      print('Parsed notification payload: $payload');
 
-        Navigator.pushReplacementNamed(
+      if (!payload.containsKey('channelName') ||
+          !payload.containsKey('token')) {
+        print('ERROR: Missing required call data in payload');
+        return;
+      }
+
+      // Navigate to call action screen
+      if (_navigatorKey?.currentContext != null) {
+        await Navigator.pushReplacement(
           _navigatorKey!.currentContext!,
-          '/call-action',
-          arguments: {
-            'token': payload['token'],
-            'channelName': payload['channelName'],
-            'uid': int.parse(payload['uid'] ?? '0')
-          },
-        ).then((_) {
-          print('Navigation completed successfully');
-        }).catchError((error) {
-          print('Navigation error: $error');
-        });
-      });
+          MaterialPageRoute(
+            builder: (context) => CallActionScreen(
+              callData: {
+                'token': payload['token'],
+                'channelName': payload['channelName'],
+                'uid': 2, // Fixed UID for receiver
+                'is_caller': false,
+              },
+            ),
+          ),
+        );
+        print('Navigation to call action screen completed');
+      } else {
+        print('ERROR: Navigator context is null');
+      }
     } catch (e) {
-      print('Background navigation exception: $e');
+      print('Error handling notification tap: $e');
     }
-    print('===============================');
   }
 
-  // Update this method to send call data with the notification
   Future<void> sendCallNotification({
     required String token,
     required String channelName,
     required int uid,
+    required int callerUid,
   }) async {
     try {
       final authToken = await _authService.getToken();
-      if (authToken == null) {
-        print('No auth token available');
-        return;
-      }
+      if (authToken == null) throw Exception('No auth token available');
+
+      print('Sending notification with data:');
+      print('Channel: $channelName');
+      print('Receiver UID: $uid');
+      print('Caller UID: $callerUid');
 
       final response = await http.post(
         Uri.parse(
@@ -274,19 +257,17 @@ class NotificationService {
         body: jsonEncode({
           'token': token,
           'channelName': channelName,
-          'uid': uid.toString(),
+          'uid': uid,
+          'caller_uid': callerUid,
         }),
       );
 
-      if (response.statusCode == 200) {
-        print('Call notification sent successfully with token data');
-      } else {
-        print('Failed to send call notification: ${response.statusCode}');
+      if (response.statusCode != 200) {
         throw Exception('Failed to send notification: ${response.statusCode}');
       }
     } catch (e) {
       print('Error sending notification: $e');
-      throw e;
+      rethrow;
     }
   }
 }

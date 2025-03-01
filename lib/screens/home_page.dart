@@ -19,27 +19,42 @@ class HomePage extends StatelessWidget {
   }
 
   Future<Map<String, dynamic>> _generateToken() async {
-    final authToken = await _authService.getToken();
-    if (authToken == null) {
-      throw Exception('No auth token found');
-    }
+    try {
+      final authToken = await _authService.getToken();
+      if (authToken == null) {
+        throw Exception('No auth token found');
+      }
 
-    final response = await http.post(
-      Uri.parse(
-          'https://4dkf27s7-8000.inc1.devtunnels.ms/api/user/generate-token/'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Token $authToken',
-      },
-      body: json.encode({
-        'channel_name': 'default_channel',
-      }),
-    );
+      final response = await http.post(
+        Uri.parse(
+            'https://4dkf27s7-8000.inc1.devtunnels.ms/api/user/generate-token/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Token $authToken',
+        },
+        body: json.encode({
+          'channel_name': 'call_${DateTime.now().millisecondsSinceEpoch}',
+        }),
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to generate token: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('Token generation response: $data');
+
+        // Return properly structured data
+        return {
+          'token': data['caller_token'], // Use caller_token
+          'channelName': data['channel'], // Use channel
+          'uid': data['caller_uid'], // Use caller_uid
+          'receiver_token': data['receiver_token'],
+          'receiver_uid': data['receiver_uid'],
+        };
+      } else {
+        throw Exception('Failed to generate token: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error generating token: $e');
+      throw e;
     }
   }
 
@@ -50,7 +65,7 @@ class HomePage extends StatelessWidget {
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
-          return Center(
+          return const Center(
             child: CircularProgressIndicator(
               color: Colors.white,
             ),
@@ -58,37 +73,43 @@ class HomePage extends StatelessWidget {
         },
       );
 
-      // Generate token first
+      // Generate token
       final tokenData = await _generateToken();
-      final agoraToken = tokenData['token'];
-      final channelName = tokenData['channel'];
-      final uid = tokenData['uid'];
+      print('Generated token data: $tokenData');
 
       // Close loading indicator
-      Navigator.pop(context);
-
-      // Send notification with token data
-      await _notificationService.sendCallNotification(
-        token: agoraToken,
-        channelName: channelName,
-        uid: uid,
-      );
-
-      // Navigate to video call with the same token
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VideoCallPage(
-            tokenData: tokenData,
-          ),
-        ),
-      );
-    } catch (e) {
-      // Close loading indicator if still showing
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
 
+      // Send notification with receiver's token
+      await _notificationService.sendCallNotification(
+        token: tokenData['receiver_token']!,
+        channelName: tokenData['channelName']!,
+        uid: tokenData['receiver_uid'] as int,
+        callerUid: tokenData['uid'] as int,
+      );
+
+      // Navigate with caller's token
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VideoCallPage(
+            tokenData: {
+              'token': tokenData['token'],
+              'channelName': tokenData['channelName'],
+              'uid': tokenData['uid'],
+              'caller_uid': tokenData['uid'],
+              'is_caller': true,
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error starting call: $e');
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to initiate call: ${e.toString()}'),
