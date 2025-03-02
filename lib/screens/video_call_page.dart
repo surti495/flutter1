@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import '../services/auth_service.dart';
 
@@ -18,6 +19,7 @@ class VideoCallPage extends StatefulWidget {
 class VideoCallPageState extends State<VideoCallPage> {
   final AuthService _authService = AuthService();
   final Set<int> _remoteUsers = {};
+  final Set<int> _usersWithVideoOff = {};
   bool _localUserJoined = false;
   late RtcEngine _engine;
   bool _isMicMuted = false;
@@ -118,9 +120,40 @@ class VideoCallPageState extends State<VideoCallPage> {
           setState(() => _remoteUsers.add(remoteUid));
         },
         onUserOffline: (RtcConnection connection, int remoteUid,
-            UserOfflineReasonType reason) {
+            UserOfflineReasonType reason) async {
           print('Remote user $remoteUid left channel');
           setState(() => _remoteUsers.remove(remoteUid));
+
+          // If caller left, end call for everyone
+          if (_isCaller ? remoteUid == 2 : remoteUid == 1) {
+            print('Main participant left, ending call for everyone');
+            await _handleCallEnded();
+          }
+        },
+        onConnectionStateChanged: (RtcConnection connection,
+            ConnectionStateType state,
+            ConnectionChangedReasonType reason) async {
+          print('Connection state changed: $state, reason: $reason');
+
+          // Handle disconnection
+          if (state == ConnectionStateType.connectionStateDisconnected ||
+              state == ConnectionStateType.connectionStateFailed) {
+            await _handleCallEnded();
+          }
+        },
+        onRemoteVideoStateChanged: (RtcConnection connection,
+            int remoteUid,
+            RemoteVideoState state,
+            RemoteVideoStateReason reason,
+            int elapsed) {
+          print('Remote video state changed for uid $remoteUid: $state');
+          setState(() {
+            if (state == RemoteVideoState.remoteVideoStateStopped) {
+              _usersWithVideoOff.add(remoteUid);
+            } else if (state == RemoteVideoState.remoteVideoStateDecoding) {
+              _usersWithVideoOff.remove(remoteUid);
+            }
+          });
         },
       ));
 
@@ -173,21 +206,13 @@ class VideoCallPageState extends State<VideoCallPage> {
 
   Future<void> _endCall() async {
     try {
-      // Update call log with 'end' only if this is the caller
-      // Otherwise, just use 'leave'
-      await updateCallLog(_isCaller ? 'end' : 'leave');
-
-      // Leave Agora channel
-      await _dispose();
-
-      setState(() {
-        _localUserJoined = false;
-        _remoteUsers.clear();
-      });
-
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+      if (_isCaller) {
+        // If caller ends the call, update log as 'end'
+        await updateCallLog('end');
       }
+
+      // Handle call ending for everyone
+      await _handleCallEnded();
     } catch (e) {
       print('Error ending call: $e');
       _showError('Failed to end call properly');
@@ -213,6 +238,30 @@ class VideoCallPageState extends State<VideoCallPage> {
     }
   }
 
+  Future<void> _handleCallEnded() async {
+    if (!mounted) return;
+
+    try {
+      // Update call log
+      await updateCallLog('leave');
+
+      // Leave channel and cleanup
+      await _dispose();
+
+      setState(() {
+        _localUserJoined = false;
+        _remoteUsers.clear();
+      });
+
+      // Navigate to home
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      print('Error handling call end: $e');
+    }
+  }
+
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,46 +273,94 @@ class VideoCallPageState extends State<VideoCallPage> {
     }
   }
 
+  /// A helper widget that creates a glassmorphic container using BackdropFilter.
+  Widget _glassmorphicContainer(
+      {required Widget child, double borderRadius = 16.0}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Main video views
-            _remoteUsers.isEmpty
-                ? const Center(
-                    child: CircularProgressIndicator(),
-                  )
-                : _buildGridVideoView(),
-
-            // Local video view
-            if (_localUserJoined)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  width: 100,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white, width: 2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: AgoraVideoView(
-                      controller: VideoViewController(
-                        rtcEngine: _engine,
-                        canvas: const VideoCanvas(uid: 0),
-                      ),
+      // Use a gradient background for the glassmorphic effect
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [const Color.fromARGB(255, 9, 5, 29), Colors.black],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Main video views
+              Positioned.fill(
+                child: _remoteUsers.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : _buildGridVideoView(),
+              ),
+              // Local video view in a glassmorphic container
+              if (_localUserJoined)
+                Positioned(
+                  top: 20,
+                  right: 20,
+                  child: _glassmorphicContainer(
+                    child: SizedBox(
+                      width: 100,
+                      height: 150,
+                      child: !_isVideoEnabled
+                          ? Container(
+                              color: Colors.black,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.videocam_off,
+                                      color: Colors.white.withOpacity(0.5),
+                                      size: 24,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Video Off',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.5),
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : AgoraVideoView(
+                              controller: VideoViewController(
+                                rtcEngine: _engine,
+                                canvas: const VideoCanvas(uid: 0),
+                              ),
+                            ),
                     ),
                   ),
                 ),
-              ),
-
-            // Control buttons
-            _buildControlButtons(),
-          ],
+              // Control buttons
+              _buildControlButtons(),
+            ],
+          ),
         ),
       ),
     );
@@ -271,21 +368,52 @@ class VideoCallPageState extends State<VideoCallPage> {
 
   Widget _buildGridVideoView() {
     return GridView.builder(
+      padding: const EdgeInsets.all(4),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: _getGridCrossAxisCount(_remoteUsers.length),
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
       ),
       itemCount: _remoteUsers.length,
       itemBuilder: (context, index) {
         int remoteUid = _remoteUsers.elementAt(index);
         return Container(
-          padding: const EdgeInsets.all(2),
-          child: AgoraVideoView(
-            controller: VideoViewController.remote(
-              rtcEngine: _engine,
-              canvas: VideoCanvas(uid: remoteUid),
-              connection: RtcConnection(channelId: channelName!),
-            ),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
           ),
+          child: _usersWithVideoOff.contains(remoteUid)
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.videocam_off,
+                        color: Colors.white.withOpacity(0.5),
+                        size: 40,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Video Off',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: AgoraVideoView(
+                    controller: VideoViewController.remote(
+                      rtcEngine: _engine,
+                      canvas: VideoCanvas(uid: remoteUid),
+                      connection: RtcConnection(channelId: channelName!),
+                    ),
+                  ),
+                ),
         );
       },
     );
@@ -298,7 +426,7 @@ class VideoCallPageState extends State<VideoCallPage> {
     return 3;
   }
 
-  // Move control buttons to separate method
+  // Control buttons positioned at the bottom center
   Widget _buildControlButtons() {
     return Positioned(
       bottom: 48,
@@ -310,23 +438,24 @@ class VideoCallPageState extends State<VideoCallPage> {
           _buildGlassmorphicButton(
             onPressed: _toggleMicrophone,
             icon: _isMicMuted ? Icons.mic_off : Icons.mic,
-            color: _isMicMuted ? Colors.red : Colors.blue,
+            color: _isMicMuted ? Colors.redAccent : Colors.blueAccent,
           ),
           _buildGlassmorphicButton(
             onPressed: _endCall,
             icon: Icons.call_end,
-            color: Colors.red,
+            color: Colors.redAccent,
           ),
           _buildGlassmorphicButton(
             onPressed: _toggleVideo,
             icon: _isVideoEnabled ? Icons.videocam : Icons.videocam_off,
-            color: _isVideoEnabled ? Colors.blue : Colors.red,
+            color: _isVideoEnabled ? Colors.blueAccent : Colors.redAccent,
           ),
         ],
       ),
     );
   }
 
+  // Glassmorphic button with BackdropFilter
   Widget _buildGlassmorphicButton({
     required VoidCallback onPressed,
     required IconData icon,
@@ -334,24 +463,14 @@ class VideoCallPageState extends State<VideoCallPage> {
   }) {
     return GestureDetector(
       onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          color: color,
-          size: 30,
+      child: _glassmorphicContainer(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Icon(
+            icon,
+            color: color,
+            size: 30,
+          ),
         ),
       ),
     );
